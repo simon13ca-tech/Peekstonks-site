@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PeekStonks • CS2 Market Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css"/>
+  <style>
+    body { background: #0a0a0a; font-family: 'Inter', system-ui, sans-serif; }
+    .neon { text-shadow: 0 0 20px #22c55e, 0 0 40px #22c55e; }
+    .card { transition: all 0.3s ease; }
+    .card:hover { transform: translateY(-6px); box-shadow: 0 10px 30px rgba(34,197,94,0.3); }
+    th { cursor: pointer; user-select: none; }
+  </style>
+</head>
+<body class="text-zinc-200 min-h-screen">
+  <!-- Navbar -->
+  <nav class="bg-zinc-950 border-b border-green-500/30 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center">
+      <div class="flex items-center gap-3">
+        <i class="fas fa-eye text-5xl text-green-500"></i>
+        <h1 class="text-4xl font-bold neon">PeekStonks</h1>
+      </div>
+      <div class="text-sm text-zinc-400">CS2 Market • Skins • Cajas • Cápsulas • Agentes</div>
+    </div>
+  </nav>
+
+  <div class="max-w-7xl mx-auto px-6 py-10">
+    <!-- Tagline -->
+    <div class="text-center mb-12">
+      <h2 class="text-3xl md:text-4xl font-bold text-green-400 neon">Peek the CS2 Market</h2>
+      <p class="text-xl text-zinc-400 mt-2">Catch the Pumps Before They Moon 🚀</p>
+    </div>
+
+    <!-- Timeframe selector -->
+    <div class="flex justify-center gap-3 mb-10 bg-zinc-900 p-2 rounded-3xl w-fit mx-auto border border-green-500/20">
+      <button class="time-btn px-8 py-3 rounded-2xl font-bold bg-green-500 text-black active" onclick="changeTimeframe(1)">24H</button>
+      <button class="time-btn px-8 py-3 rounded-2xl font-bold hover:bg-zinc-800" onclick="changeTimeframe(2)">7D</button>
+      <button class="time-btn px-8 py-3 rounded-2xl font-bold hover:bg-zinc-800" onclick="changeTimeframe(3)">30D</button>
+    </div>
+
+    <!-- Top Gainers & Losers -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+      <div>
+        <h2 class="text-emerald-400 text-2xl font-bold mb-4 flex items-center gap-3"><i class="fas fa-rocket"></i> Top Gainers</h2>
+        <div id="gainers" class="grid gap-4"></div>
+      </div>
+      <div>
+        <h2 class="text-red-400 text-2xl font-bold mb-4 flex items-center gap-3"><i class="fas fa-chart-line-down"></i> Top Losers</h2>
+        <div id="losers" class="grid gap-4"></div>
+      </div>
+    </div>
+
+    <!-- Tabla principal -->
+    <div class="bg-zinc-900 rounded-3xl overflow-hidden border border-zinc-700 mb-12">
+      <table class="w-full text-sm">
+        <thead class="bg-zinc-950">
+          <tr>
+            <th class="px-8 py-5 text-left">Item</th>
+            <th class="px-8 py-5 text-right">Precio</th>
+            <th class="px-8 py-5 text-right change-header">24H</th>
+            <th class="px-8 py-5 text-right">Volumen</th>
+            <th class="px-8 py-5 text-right">Stock</th>
+          </tr>
+        </thead>
+        <tbody id="table-body" class="divide-y divide-zinc-700"></tbody>
+      </table>
+    </div>
+
+    <!-- Gráfico -->
+    <div class="bg-zinc-900 rounded-3xl p-8 border border-zinc-700">
+      <h2 class="text-2xl font-bold mb-6 flex items-center gap-3">
+        <i class="fas fa-chart-area text-green-500"></i>
+        Evolución – <span id="chart-title" class="text-green-400">Selecciona un item</span>
+      </h2>
+      <canvas id="priceChart" class="w-full h-96"></canvas>
+    </div>
+  </div>
+
+  <script>
+    // Mock data (después lo reemplazamos con API real)
+    let currentTimeframe = 1;
+    let items = [
+      {name:"Revolution Case", price:0.92, change24:22.7, change7d:41.3, change30d:68.9, volume:12450, stock:8920},
+      {name:"Kilowatt Case", price:2.18, change24:15.6, change7d:-8.3, change30d:42.1, volume:9800, stock:6730},
+      {name:"AK-47 | Redline (FT)", price:12.45, change24:8.3, change7d:-4.2, change30d:15.6, volume:1240, stock:856},
+      {name:"Paris 2023 Legends Capsule", price:4.20, change24:-12.5, change7d:18.9, change30d:-22.4, volume:3240, stock:2890},
+      {name:"AWP | Dragon Lore (FN)", price:12450, change24:-2.8, change7d:5.1, change30d:12.3, volume:67, stock:12},
+    ];
+
+    function getChange(item) {
+      if (currentTimeframe === 1) return item.change24;
+      if (currentTimeframe === 2) return item.change7d;
+      return item.change30d;
+    }
+
+    function renderTopCards() {
+      const gainersDiv = document.getElementById('gainers');
+      const losersDiv = document.getElementById('losers');
+      gainersDiv.innerHTML = losersDiv.innerHTML = '';
+
+      const sortedGainers = [...items].sort((a,b) => getChange(b) - getChange(a)).slice(0,4);
+      const sortedLosers = [...items].sort((a,b) => getChange(a) - getChange(b)).slice(0,4);
+
+      sortedGainers.forEach(item => {
+        const change = getChange(item);
+        gainersDiv.innerHTML += `
+          <div class="bg-zinc-800 p-5 rounded-2xl card cursor-pointer hover:border-green-500/50" onclick="loadChart('${item.name}')">
+            <div class="text-zinc-400 text-sm truncate">${item.name}</div>
+            <div class="flex justify-between items-end mt-3">
+              <span class="text-2xl font-mono font-bold">$${item.price.toFixed(2)}</span>
+              <span class="text-emerald-400 text-2xl font-bold">+${change}%</span>
+            </div>
+          </div>`;
+      });
+
+      sortedLosers.forEach(item => {
+        const change = getChange(item);
+        losersDiv.innerHTML += `
+          <div class="bg-zinc-800 p-5 rounded-2xl card cursor-pointer hover:border-red-500/50" onclick="loadChart('${item.name}')">
+            <div class="text-zinc-400 text-sm truncate">${item.name}</div>
+            <div class="flex justify-between items-end mt-3">
+              <span class="text-2xl font-mono font-bold">$${item.price.toFixed(2)}</span>
+              <span class="text-red-400 text-2xl font-bold">${change}%</span>
+            </div>
+          </div>`;
+      });
+    }
+
+    function changeTimeframe(tf) {
+      currentTimeframe = tf;
+      document.querySelectorAll('.time-btn').forEach(btn => {
+        btn.classList.remove('bg-green-500', 'text-black', 'active');
+      });
+      event.target.classList.add('bg-green-500', 'text-black', 'active');
+      document.querySelector('.change-header').textContent = ['','24H','7D','30D'][tf];
+      renderTopCards();
+    }
+
+    function loadChart(name) {
+      document.getElementById('chart-title').textContent = name;
+      // Gráfico básico mock (después lo hacemos real con datos históricos)
+      const ctx = document.getElementById('priceChart').getContext('2d');
+      if (window.myChart) window.myChart.destroy();
+      window.myChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: ['Hace 30d', 'Hace 15d', 'Hace 7d', 'Ayer', 'Hoy'],
+          datasets: [{
+            label: 'Precio',
+            data: [100, 120, 110, 130, 145],
+            borderColor: '#22c55e',
+            tension: 0.4
+          }]
+        },
+        options: { plugins: { legend: { display: false } } }
+      });
+    }
+
+    // Inicializar
+    renderTopCards();
+    loadChart(items[0].name);
+  </script>
+</body>
+</html>
